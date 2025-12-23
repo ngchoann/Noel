@@ -44,6 +44,7 @@
     <div id="loader"></div>
 
     <div id="hud">
+
         <div id="img-status"></div>
     </div>
 
@@ -106,7 +107,7 @@
             const ctx = c.getContext('2d');
             const g = ctx.createRadialGradient(32, 32, 0, 32, 32, 32);
             g.addColorStop(0, 'rgba(255, 255, 255, 0.5)'); 
-            g.addColorStop(1, 'rgba(255, 255, 255, 0)');    
+            g.addColorStop(1, 'rgba(255, 255, 255, 0)');   
             ctx.fillStyle = g; ctx.fillRect(0, 0, 64, 64);
             return new THREE.Texture(c);
         })(); cloudTex.needsUpdate = true;
@@ -135,10 +136,6 @@
 
         // --- HỆ THỐNG TẠO CHỮ TỪ HẠT (TEXT PARTICLES) ---
         let textPoints = [];
-        let floatingSpareTargets = [];
-        let floatingSpareTargetsValid = false;
-        
-        // --- CLEAN VERSION V5: XÓA SẠCH TUYỆT ĐỐI ---
         const generateTextTargets = () => {
             const c = document.createElement('canvas');
             const ctx = c.getContext('2d');
@@ -147,19 +144,18 @@
             c.width = width;
             c.height = height;
 
-            // RESET TOÀN BỘ TRANSFORMATION: Đảm bảo không còn lệnh scale(-1) nào tồn tại
-            ctx.setTransform(1, 0, 0, 1, 0, 0); 
+            // Xóa nền (trong suốt)
             ctx.clearRect(0, 0, width, height);
 
             ctx.textAlign = 'center';
             ctx.textBaseline = 'middle';
             
-            // Dòng 1: Merry Christmas
+            // Dòng 1: Merry Christmas (Pacifico Font - Regular)
             ctx.font = '100px "Pacifico", cursive'; 
-            ctx.fillStyle = '#FFFFFF';
+            ctx.fillStyle = '#FFFFFF'; // Vẽ màu trắng lên canvas để lấy mẫu
             ctx.fillText("Merry Christmas", width / 2, height / 2 - 80);
 
-            // Dòng 2: Yêu em bé
+            // Dòng 2: Yêu em bé (Dancing Script Font - Regular)
             ctx.font = '120px "Dancing Script", cursive';
             ctx.fillText("Yêu em bé ♥", width / 2, height / 2 + 50);
 
@@ -167,14 +163,19 @@
             const data = imgData.data;
             const points = [];
 
-            // Quét pixel
+            // Quét pixel (Bước nhảy 2.5 để giảm mật độ)
             for (let y = 0; y < height; y += 2.5) {
                 for (let x = 0; x < width; x += 2.5) {
                     const i = (Math.floor(y) * width + Math.floor(x)) * 4;
                     if (data[i+3] > 128) { // Nếu pixel không trong suốt
                         const pX = (x - width / 2) * 1.6; 
+                        
+                        // --- Đưa tọa độ Y về giữa (bỏ offset +180) ---
                         const pY = -(y - height / 2) * 1.6; 
+                        
                         const pZ = 0;
+                        
+                        // Xác định dòng trên hay dưới dựa vào vị trí Y
                         const isTopLine = y < height / 2 - 10; 
 
                         points.push({
@@ -186,20 +187,8 @@
             }
             return points;
         };
+        // Tạo sẵn các điểm đích cho chữ
         const textTargets = generateTextTargets();
-
-        function generateFloatingSpareTargets(count) {
-            const arr = [];
-            for (let i = 0; i < count; i++) {
-                const angle = Math.random() * Math.PI * 2;
-                const radius = 700 + Math.random() * 400;
-                const y = (Math.random() - 0.5) * 700;
-                const x = Math.cos(angle) * radius;
-                const z = Math.sin(angle) * radius;
-                arr.push(new THREE.Vector3(x, y, z));
-            }
-            return arr;
-        }
 
         // --- HỆ THỐNG KHÓI SAU XE ---
         const SANTA_SMOKE_COUNT = 600; 
@@ -1023,34 +1012,6 @@
 
             const ribbonColors = ribbonGeometry.attributes.color;
             if (((__frameCounter & 1) === 0) || STATE.isExploded || STATE.explodeLevel > 0.01) {
-                // Kiểm tra chuyển trạng thái textMode để random lại vị trí hạt dư thừa
-                // --- FIX QUAN TRỌNG: TẮT HOÀN TOÀN HIỆU ỨNG CHỮ CŨ CỦA ÔNG GIÀ KHI VÀO CHẾ ĐỘ CHỮ ---
-                if (typeof letterTrailGroup !== 'undefined' && letterTrailGroup) {
-                    letterTrailGroup.visible = !STATE.isTextMode;
-                }
-                // Nếu đang ở text mode, duyệt qua tất cả các chữ cái ông già noel và tắt chúng đi
-                if(STATE.isTextMode && letterObjects) {
-                    letterObjects.forEach(obj => {
-                        if(obj.sprite) obj.sprite.visible = false;
-                        if(obj.particleSystem) obj.particleSystem.visible = false;
-                    });
-                }
-
-
-                if (STATE.isTextMode && !floatingSpareTargetsValid) {
-                    // Số lượng hạt dư thừa lớn nhất trong 4 nhóm
-                    let maxSpare = 0;
-                    [foliageData, ribbonData, starData, fillerData].forEach((ds, idx) => {
-                        if (ds.length > textTargets.length) {
-                            maxSpare = Math.max(maxSpare, ds.length - textTargets.length);
-                        }
-                    });
-                    floatingSpareTargets = generateFloatingSpareTargets(maxSpare);
-                    floatingSpareTargetsValid = true;
-                } else if (!STATE.isTextMode && floatingSpareTargetsValid) {
-                    floatingSpareTargets = [];
-                    floatingSpareTargetsValid = false;
-                }
                 [foliageData, ribbonData, starData, fillerData].forEach((ds,idx)=>{
                     let geo; if(idx===0) geo=foliageGeometry; else if(idx===1) geo=ribbonGeometry; else if(idx===2) geo=starMesh.geometry; else geo=fillerMesh.geometry;
                     const pos=geo.attributes.position;
@@ -1084,6 +1045,7 @@
                                         const intensity = 1.0 + flicker * 0.3 + extraSparkle;
                                         colAttr.setXYZ(i, baseR * intensity, baseG * intensity, baseB * intensity);
                                     }
+                                    
                                     // Rung động hạt nhẹ để tăng cảm giác lấp lánh
                                     const jitterX = (Math.random() - 0.5) * 1.5;
                                     const jitterY = (Math.random() - 0.5) * 1.5;
@@ -1093,14 +1055,11 @@
                                      d.current.lerp(target, 0.08);
                                 }
                             } else {
-                                // Hạt dư thừa: Giữ vị trí random đã sinh ra khi vào chế độ chữ
-                                let spareIdx = i - textTargets.length;
-                                if (spareIdx < floatingSpareTargets.length) {
-                                    target = floatingSpareTargets[spareIdx];
-                                } else {
-                                    // Nếu thiếu, random tạm
-                                    target = new THREE.Vector3((Math.random()-0.5)*1200, (Math.random()-0.5)*800, (Math.random()-0.5)*800);
-                                }
+                                // Hạt thừa -> Bay nền sao (Starfield)
+                                const bgX = (Math.sin(i * 0.1)*900);
+                                const bgY = (Math.cos(i * 0.05)*500);
+                                const bgZ = -300 + Math.sin(i*0.1)*200;
+                                target = new THREE.Vector3(bgX, bgY, bgZ);
                                 if(idx === 0 && colAttr) colAttr.setXYZ(i, 0.15, 0.15, 0.2); // Màu xanh đêm nhẹ
                                 d.current.lerp(target, 0.04);
                             }
